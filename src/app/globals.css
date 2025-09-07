@@ -1,0 +1,59 @@
+@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --font-space-grotesk: 'Space Grotesk', sans-serif;
+  --font-inter: 'Inter', sans-serif;
+  
+  /* 色彩系统 */
+  --primary: 212 98% 73%;
+  --primary-foreground: 224 71.4% 4.1%;
+  
+  --secondary: 210 40% 98%;
+  --secondary-foreground: 222.2 84% 4.9%;
+  
+  --background: 216 100% 96%;
+  --foreground: 224 71.4% 4.1%;
+  
+  --card: 216 100% 98%;
+  --card-foreground: 224 71.4% 4.1%;
+  
+  --accent: 275 43% 77%;
+  --accent-foreground: 224 71.4% 4.1%;
+  
+  --muted: 210 40% 98%;
+  --muted-foreground: 223.4 21.3% 44.1%;
+  
+  --border: 215.3 25% 86.5%;
+  --input: 215.3 25% 86.5%;
+  --ring: 212 98% 73%;
+  
+  --destructive: 0 84.2% 60.2%;
+  --destructive-foreground: 210 40% 98%;
+  
+  --popover: 0 0% 100%;
+  --popover-foreground: 222.2 84% 4.9%;
+  
+  --radius: 0.5rem;
+}
+
+* {
+  border-color: hsl(var(--border));
+}
+
+body {
+  color: hsl(var(--foreground));
+  background: hsl(var(--background));
+  font-family: var(--font-inter);
+}
+
+.font-headline {
+  font-family: var(--font-space-grotesk);
+}
+
+.font-body {
+  font-family: var(--font-inter);
+}
