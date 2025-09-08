@@ -1,0 +1,558 @@
+
+'use client';
+
+import { useState, useEffect } from 'react';
+import { useForm, type SubmitHandler } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
+import * as z from 'zod';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Form, FormControl, FormField, FormItem } from '@/components/ui/form';
+import { Textarea } from '@/components/ui/textarea';
+import { useToast } from '@/hooks/use-toast';
+import { getProductRecommendations, type ProductRecommendationsOutput } from '@/ai/flows/product-recommendations';
+import { generateUserProfile, type UserProfile } from '@/ai/flows/generate-user-profile';
+import { Loader2, Image as ImageIcon, Send, Sparkles, Tags, BrainCircuit, CheckCircle, MessageSquare } from 'lucide-react';
+import Image from 'next/image';
+import { Skeleton } from '@/components/ui/skeleton';
+import { Badge } from '../ui/badge';
+import { useAuthStore, getUsers, type User } from '@/store/auth';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { Separator } from '../ui/separator';
+import { addDemand } from '@/store/demands';
+import { useRouter } from 'next/navigation';
+
+const formSchema = z.object({
+  description: z.string().min(1, { message: '请输入您要搜索的内容' }),
+  image: z.instanceof(File).optional(),
+});
+type FormValues = z.infer<typeof formSchema>;
+
+const fileToDataUri = (file: File): Promise<string> => {
+    return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => {
+            if (typeof reader.result === 'string') {
+                resolve(reader.result);
+            } else {
+                reject(new Error('Failed to read file as Data URI'));
+            }
+        };
+        reader.onerror = (error) => reject(error);
+        reader.readAsDataURL(file);
+    });
+};
+
+const UserMessage = ({ text, imageUrl }: { text: string; imageUrl?: string | null }) => (
+    <div className="flex items-start justify-end gap-3">
+        <div className="bg-primary text-primary-foreground rounded-lg p-3 max-w-lg">
+            {imageUrl && <Image src={imageUrl} alt="用户上传" width={200} height={200} className="rounded-md mb-2" />}
+            <p>{text}</p>
+        </div>
+        <Avatar className="border">
+            <AvatarImage src="https://placehold.co/40x40.png" data-ai-hint="user avatar" />
+            <AvatarFallback>您</AvatarFallback>
+        </Avatar>
+    </div>
+);
+
+const AIMessage = ({ profile, recommendations, onPublish }: { profile: UserProfile | null; recommendations: ProductRecommendationsOutput['recommendations']; onPublish: () => void; }) => {
+    const { role } = useAuthStore();
+    return (
+        <div className="flex items-start gap-3">
+            <Avatar className="border">
+                <AvatarImage src="https://placehold.co/40x40.png" data-ai-hint="bot avatar" />
+                <AvatarFallback>AI</AvatarFallback>
+            </Avatar>
+            <div className="flex flex-col gap-4 max-w-2xl">
+                {profile && <UserProfileDisplay profile={profile} />}
+                {recommendations.length > 0 && <RecommendationsDisplay recommendations={recommendations} onPublish={onPublish} showPublishButton={role === 'user'} />}
+            </div>
+        </div>
+    );
+};
+
+const LoadingMessage = () => (
+    <div className="flex items-start gap-3">
+        <Avatar className="border">
+            <AvatarImage src="https://placehold.co/40x40.png" data-ai-hint="bot avatar" />
+            <AvatarFallback>AI</AvatarFallback>
+        </Avatar>
+        <div className="flex flex-col gap-4 w-full max-w-2xl">
+            <Card>
+                <CardHeader>
+                    <Skeleton className="h-6 w-1/2" />
+                    <Skeleton className="h-4 w-3/4" />
+                </CardHeader>
+                <CardContent>
+                    <Skeleton className="h-4 w-full mb-2" />
+                    <div className="flex gap-2">
+                        <Skeleton className="h-6 w-20 rounded-full" />
+                        <Skeleton className="h-6 w-24 rounded-full" />
+                    </div>
+                </CardContent>
+            </Card>
+            <Card>
+                <CardHeader>
+                    <Skeleton className="h-6 w-1/3" />
+                </CardHeader>
+                <CardContent className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    {[1, 2].map(i => (
+                        <Card key={i}>
+                            <Skeleton className="h-32 w-full rounded-t-lg" />
+                            <CardHeader>
+                                <Skeleton className="h-5 w-3/4" />
+                            </CardHeader>
+                            <CardContent>
+                                <Skeleton className="h-4 w-full" />
+                            </CardContent>
+                        </Card>
+                    ))}
+                </CardContent>
+            </Card>
+        </div>
+    </div>
+);
+
+const UserProfileDisplay = ({ profile }: { profile: UserProfile }) => (
+    <Card className="bg-accent/20 border-accent">
+        <CardHeader>
+            <CardTitle className="flex items-center gap-2 font-headline"><BrainCircuit className="text-primary" /> 用户画像分析</CardTitle>
+            <CardDescription>AI 根据您的输入生成的分析结果。</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-3">
+            <div>
+                <h3 className="font-semibold flex items-center gap-2"><Sparkles className="text-primary/80"/>画像总结</h3>
+                <p className="text-muted-foreground mt-1 text-sm">{profile.summary}</p>
+            </div>
+            <div>
+                <h3 className="font-semibold flex items-center gap-2"><Tags className="text-primary/80"/>关键词标签</h3>
+                <div className="flex flex-wrap gap-2 mt-2">
+                    {profile.tags.map(tag => <Badge key={tag} variant="secondary">{tag}</Badge>)}
+                </div>
+            </div>
+        </CardContent>
+    </Card>
+);
+
+const RecommendationsDisplay = ({ recommendations, onPublish, showPublishButton }: { recommendations: ProductRecommendationsOutput['recommendations']; onPublish: () => void; showPublishButton: boolean; }) => (
+    <Card>
+        <CardHeader>
+            <CardTitle className="font-headline flex items-center gap-2"><CheckCircle className="text-primary"/> 首要推荐</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {recommendations.map((item, index) => (
+                    <Card key={index} className="flex flex-col hover:shadow-lg transition-shadow duration-300 overflow-hidden">
+                        <div className="aspect-video bg-muted relative">
+                            <Image
+                                src={item.imageUrl || `https://placehold.co/600x400.png`}
+                                alt={item.name}
+                                fill
+                                className="object-cover"
+                                data-ai-hint="product photo"
+                            />
+                        </div>
+                        <CardHeader className="pb-2">
+                            <CardTitle className="text-base font-bold">{item.name}</CardTitle>
+                        </CardHeader>
+                        <CardContent className="flex-grow text-sm">
+                            <p className="text-muted-foreground line-clamp-3">{item.description}</p>
+                        </CardContent>
+                        <CardFooter className="gap-2">
+                            <Button size="sm" asChild variant="secondary">
+                                <a href={item.link || '#'} target="_blank" rel="noopener noreferrer">查看详情</a>
+                            </Button>
+                            <Button size="sm" asChild>
+                                <a href={item.link || '#'} target="_blank" rel="noopener noreferrer">立即购买</a>
+                            </Button>
+                        </CardFooter>
+                    </Card>
+                ))}
+            </div>
+             <Card className="bg-background">
+                <CardHeader>
+                    <CardTitle className="text-md font-semibold">推荐理由</CardTitle>
+                </CardHeader>
+                <CardContent>
+                    <p className="text-muted-foreground text-sm">这些推荐是基于您对舒适和防水性的需求，结合了徒步场景的专业考量，为您精选了市场上评价最高且最符合条件的产品。</p>
+                </CardContent>
+            </Card>
+            {showPublishButton && (
+                <div className="text-center pt-2">
+                    <Button variant="outline" onClick={onPublish}>不满意？发布到需求池</Button>
+                </div>
+            )}
+        </CardContent>
+    </Card>
+);
+
+type Message = {
+    type: 'user' | 'ai' | 'loading';
+    text?: string;
+    imageUrl?: string | null;
+    profile?: UserProfile | null;
+    recommendations?: ProductRecommendationsOutput['recommendations'];
+};
+
+function CustomServiceConnector({ lastUserDemand }: { lastUserDemand: string }) {
+    const [step, setStep] = useState<'initial' | 'input' | 'loading' | 'results'>('initial');
+    const [demand, setDemand] = useState('');
+    const [designers, setDesigners] = useState<User[]>([]);
+    const [supplier, setSupplier] = useState<User | null>(null);
+    const [isLoading, setIsLoading] = useState(false);
+
+    useEffect(() => {
+        if (lastUserDemand && step === 'input') {
+            setDemand(lastUserDemand);
+        }
+    }, [lastUserDemand, step]);
+
+    const getAvatar = (user: User): string => {
+        const role = user.role;
+        const name = user.name;
+        if (role === 'admin') return 'male administrator';
+        if (role === 'supplier') return 'technology logo';
+        if (role === 'creator') {
+            const creatorMap: {[key: string]: string} = {
+                '爱丽丝': 'female creator', '鲍勃': 'male designer', '查理': 'male artist', '戴安娜': 'female artist',
+            }
+            return creatorMap[name] || 'female creator';
+        };
+        return 'user avatar';
+    };
+
+    const handleFindMatch = async () => {
+        if (!demand) return;
+        setIsLoading(true);
+        setStep('loading');
+
+        try {
+            const allUsers = await getUsers();
+            // Simulate matching logic based on demand description
+            const recommendedDesigners = allUsers.filter(u => u.role === 'creator' && u.specialty?.includes('角色'));
+            const recommendedSupplier = allUsers.find(u => u.role === 'supplier' && u.specialty?.includes('3D')) || null;
+            
+            setDesigners(recommendedDesigners);
+            setSupplier(recommendedSupplier);
+
+        } catch (error) {
+            console.error("Failed to fetch users for custom service", error);
+        } finally {
+             // Simulate network delay for effect
+            setTimeout(() => {
+                setIsLoading(false);
+                setStep('results');
+            }, 1500);
+        }
+    };
+    
+    return (
+        <Card className="shadow-lg">
+            <CardHeader>
+                <CardTitle className="font-headline">高端定制服务</CardTitle>
+                <CardDescription>需要更个性化的服务吗？我们可以为您连接顶级设计师和供应商。</CardDescription>
+            </CardHeader>
+            <CardContent>
+                {step === 'initial' && (
+                     <>
+                        <div className="aspect-video bg-muted rounded-lg mb-4 relative overflow-hidden">
+                            <Image src="https://placehold.co/600x400.png" fill objectFit="cover" alt="定制服务" data-ai-hint="astronaut suit" />
+                        </div>
+                        <Button className="w-full" onClick={() => setStep('input')}>开始定制</Button>
+                    </>
+                )}
+
+                {step === 'input' && (
+                    <div className="space-y-4">
+                        <Textarea 
+                            placeholder="请详细描述您的特别需求，例如：我需要一个赛博朋克风格的女性机器人角色模型，用于游戏开发..."
+                            rows={6}
+                            value={demand}
+                            onChange={(e) => setDemand(e.target.value)}
+                        />
+                        <Button className="w-full" onClick={handleFindMatch} disabled={!demand || isLoading}>寻找匹配</Button>
+                         <Button variant="link" size="sm" className="w-full" onClick={() => setStep('initial')}>返回</Button>
+                    </div>
+                )}
+
+                {(isLoading || step === 'loading') && (
+                     <div className="flex flex-col items-center justify-center space-y-4 p-8">
+                        <Loader2 className="h-10 w-10 animate-spin text-primary" />
+                        <p className="text-muted-foreground">正在为您寻找最佳匹配...</p>
+                    </div>
+                )}
+
+                {step === 'results' && !isLoading && (
+                    <div className="space-y-6">
+                        {designers.length > 0 && (
+                            <div>
+                                <h4 className="font-semibold mb-3">推荐的创意设计师</h4>
+                                <div className="space-y-4">
+                                    {designers.map(d => (
+                                         <div key={d.id} className="flex items-center justify-between p-3 bg-background rounded-lg">
+                                            <div className="flex items-center gap-3">
+                                                <Avatar>
+                                                    <AvatarImage src={`https://placehold.co/40x40.png`} data-ai-hint={getAvatar(d)}/>
+                                                    <AvatarFallback>{d.name.charAt(0)}</AvatarFallback>
+                                                </Avatar>
+                                                <div>
+                                                    <p className="font-bold">{d.name}</p>
+                                                    <p className="text-xs text-muted-foreground">{d.specialty}</p>
+                                                </div>
+                                            </div>
+                                            <Button size="sm" variant="outline"><MessageSquare className="mr-2 h-4 w-4"/> 在线沟通</Button>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
+
+                        {supplier && (
+                            <>
+                                <Separator />
+                                <div>
+                                    <h4 className="font-semibold mb-3">推荐的供应商</h4>
+                                     <div className="flex items-center justify-between p-3 bg-background rounded-lg">
+                                        <div className="flex items-center gap-3">
+                                            <Avatar>
+                                                <AvatarImage src={`https://placehold.co/40x40.png`} data-ai-hint={getAvatar(supplier)}/>
+                                                <AvatarFallback>{supplier.name.charAt(0)}</AvatarFallback>
+                                            </Avatar>
+                                            <div>
+                                                <p className="font-bold">{supplier.name}</p>
+                                                <p className="text-xs text-muted-foreground">{supplier.specialty}</p>
+                                            </div>
+                                        </div>
+                                        <Button size="sm" variant="outline"><MessageSquare className="mr-2 h-4 w-4"/> 在线沟通</Button>
+                                    </div>
+                                    <p className="text-xs text-muted-foreground mt-2">如果没有合适的设计师，我们推荐此供应商来满足您的需求。</p>
+                                </div>
+                            </>
+                        )}
+                        <Button variant="link" size="sm" className="w-full" onClick={() => setStep('input')}>重新描述需求</Button>
+                    </div>
+                )}
+            </CardContent>
+        </Card>
+    );
+}
+
+
+export function ShoppingAssistant() {
+    const { user } = useAuthStore();
+    const router = useRouter();
+    const [messages, setMessages] = useState<Message[]>([
+        { type: 'ai', profile: null, recommendations: [] }
+    ]);
+    const [imagePreview, setImagePreview] = useState<string | null>(null);
+    const [lastUserDemand, setLastUserDemand] = useState('');
+    const { toast } = useToast();
+
+    const form = useForm<FormValues>({
+        resolver: zodResolver(formSchema),
+        defaultValues: { description: '' },
+    });
+    const {formState: { isSubmitting }} = form;
+
+    const handlePublishToDemandPool = async () => {
+        if (!lastUserDemand) {
+            toast({
+                variant: 'destructive',
+                title: '无法发布',
+                description: '没有可以发布的需求内容。',
+            });
+            return;
+        }
+
+        try {
+            await addDemand({
+                title: `来自AI助手: ${lastUserDemand.substring(0, 20)}...`,
+                description: lastUserDemand,
+                category: 'AI生成',
+                budget: '待议',
+                authorId: user?.id
+            });
+            toast({
+                title: '发布成功!',
+                description: '您的需求已发布到需求池，很快就会有专业人士与您联系。',
+                action: (
+                    <Button variant="outline" size="sm" onClick={() => router.push('/demand-pool')}>
+                        前往查看
+                    </Button>
+                ),
+            });
+        } catch (error) {
+            toast({
+                variant: 'destructive',
+                title: '发布失败',
+                description: '抱歉，发布需求时遇到问题，请稍后再试。',
+            });
+            console.error("Failed to publish to demand pool:", error);
+        }
+    };
+
+    const onSubmit: SubmitHandler<FormValues> = async (data) => {
+        const userMessageText = data.description;
+        setLastUserDemand(userMessageText);
+        const userImageFile = data.image;
+
+        let userMessageImageUrl: string | null = null;
+        let imageDataUri: string | undefined = undefined;
+
+        if (userImageFile) {
+            userMessageImageUrl = URL.createObjectURL(userImageFile);
+            imageDataUri = await fileToDataUri(userImageFile);
+        }
+
+        setMessages(prev => [...prev, { type: 'user', text: userMessageText, imageUrl: userMessageImageUrl }, { type: 'loading' }]);
+        form.reset();
+        setImagePreview(null);
+
+        try {
+            const profile = await generateUserProfile({
+                description: userMessageText,
+                photoDataUri: imageDataUri
+            });
+
+            const result = await getProductRecommendations({
+                userProfile: profile,
+                photoDataUri: imageDataUri
+            });
+
+            setMessages(prev => {
+                const newMessages = [...prev];
+                const loadingIndex = newMessages.findIndex(m => m.type === 'loading');
+                if (loadingIndex !== -1) {
+                    newMessages[loadingIndex] = { type: 'ai', profile, recommendations: result.recommendations };
+                }
+                return newMessages;
+            });
+
+        } catch (error) {
+            toast({
+                variant: 'destructive',
+                title: '出错啦',
+                description: '无法获取推荐，请稍后再试。',
+            });
+            setMessages(prev => prev.filter(m => m.type !== 'loading'));
+            console.error(error);
+        }
+    };
+
+    const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (file) {
+            form.setValue('image', file);
+            setImagePreview(URL.createObjectURL(file));
+        } else {
+            form.setValue('image', undefined);
+            setImagePreview(null);
+        }
+    }
+    
+    const examplePrompts = [
+        '帮我找一款适合程序员的机械键盘',
+        '推荐一个轻便的旅行双肩包',
+        '有没有适合初学者的无人机推荐？',
+    ];
+
+    return (
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 items-start h-full">
+            <div className="lg:col-span-2 h-full flex flex-col">
+                <Card className="flex-1 flex flex-col shadow-lg">
+                    <CardHeader className="border-b">
+                        <CardTitle className="font-headline text-2xl">AI 购物助手</CardTitle>
+                    </CardHeader>
+                    <CardContent className="flex-1 p-4 overflow-y-auto space-y-6">
+                        {messages.map((msg, index) => {
+                            if (msg.type === 'user' && msg.text) {
+                                return <UserMessage key={index} text={msg.text} imageUrl={msg.imageUrl} />;
+                            }
+                            if (msg.type === 'ai') {
+                                if (index === 0) { // Welcome message
+                                    return (
+                                        <div key={index} className="flex items-start gap-3">
+                                            <Avatar className="border">
+                                                <AvatarImage src="https://placehold.co/40x40.png" data-ai-hint="bot avatar" />
+                                                <AvatarFallback>AI</AvatarFallback>
+                                            </Avatar>
+                                            <div className="bg-card rounded-lg p-3 max-w-lg"><p>您好！我是您的专属AI购物助手，请告诉我您在寻找什么？可以描述一下，或者上传一张图片。😊</p></div>
+                                        </div>
+                                    );
+                                }
+                                return <AIMessage key={index} profile={msg.profile || null} recommendations={msg.recommendations || []} onPublish={handlePublishToDemandPool} />;
+                            }
+                            if (msg.type === 'loading') {
+                                return <LoadingMessage key={index} />;
+                            }
+                            return null;
+                        })}
+                    </CardContent>
+                    <CardFooter className="p-4 border-t">
+                        <Form {...form}>
+                            <form onSubmit={form.handleSubmit(onSubmit)} className="w-full space-y-3">
+                                {imagePreview && (
+                                    <div className="relative w-24 h-24">
+                                        <Image src={imagePreview} alt="图片预览" fill className="rounded-md object-cover" />
+                                        <Button
+                                            type="button"
+                                            variant="destructive"
+                                            size="icon"
+                                            className="absolute -top-2 -right-2 h-6 w-6 rounded-full"
+                                            onClick={() => {
+                                                form.setValue('image', undefined);
+                                                setImagePreview(null);
+                                            }}
+                                        >
+                                            &times;
+                                        </Button>
+                                    </div>
+                                )}
+                                <div className="flex gap-2">
+                                    <FormField
+                                        control={form.control}
+                                        name="description"
+                                        render={({ field }) => (
+                                            <FormItem className="flex-1">
+                                                <FormControl>
+                                                    <Textarea placeholder="例如：我想要一双适合夏天徒步的舒适、防水的运动鞋..." {...field} rows={1} className="min-h-[40px]"/>
+                                                </FormControl>
+                                            </FormItem>
+                                        )}
+                                    />
+                                    <Button type="button" variant="outline" size="icon" asChild>
+                                        <label htmlFor="image-upload" className="cursor-pointer">
+                                            <ImageIcon />
+                                            <input id="image-upload" type="file" accept="image/*" className="sr-only" onChange={handleFileChange} />
+                                        </label>
+                                    </Button>
+                                    <Button type="submit" disabled={isSubmitting} size="icon">
+                                        {isSubmitting ? <Loader2 className="animate-spin" /> : <Send />}
+                                    </Button>
+                                </div>
+                                <div className="flex flex-wrap gap-2">
+                                    {examplePrompts.map((prompt) => (
+                                        <Button
+                                            key={prompt}
+                                            type="button"
+                                            variant="outline"
+                                            size="sm"
+                                            className="text-xs"
+                                            onClick={() => form.setValue('description', prompt)}
+                                        >
+                                            {prompt}
+                                        </Button>
+                                    ))}
+                                </div>
+                            </form>
+                        </Form>
+                    </CardFooter>
+                </Card>
+            </div>
+            <div className="lg:col-span-1 space-y-8">
+                <CustomServiceConnector lastUserDemand={lastUserDemand} />
+            </div>
+        </div>
+    );
+}

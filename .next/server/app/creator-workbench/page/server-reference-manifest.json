@@ -1,0 +1,16 @@
+{
+  "node": {
+    "40cf9584feb84396dc4abbeb57d601ea07632928c7": {
+      "workers": {
+        "app/creator-workbench/page": {
+          "moduleId": "[project]/.next-internal/server/app/creator-workbench/page/actions.js { ACTIONS_MODULE0 => \"[project]/src/ai/flows/generate-3d-model.ts [app-rsc] (ecmascript)\" } [app-rsc] (server actions loader, ecmascript)",
+          "async": false
+        }
+      },
+      "layer": {
+        "app/creator-workbench/page": "action-browser"
+      }
+    }
+  },
+  "edge": {}
+}

@@ -1,459 +1,256 @@
-'use client'
 
-import { useState } from 'react'
-import { AppLayout } from '@/components/app-layout'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
-import { Badge } from '@/components/ui/badge'
-import { Checkbox } from '@/components/ui/checkbox'
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from '@/components/ui/dialog'
-import { Plus, Bot, Search, Filter } from 'lucide-react'
-import { useAuthStore } from '@/store/auth'
+'use client';
 
-interface Demand {
-  id: string
-  title: string
-  description: string
-  category: string
-  budget: string
-  deadline: string
-  status: 'pending' | 'matched' | 'completed'
-  createdAt: string
-  creator: string
-}
+import { useState, useEffect } from 'react';
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Badge } from "@/components/ui/badge";
+import { Input } from "@/components/ui/input";
+import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuCheckboxItem, DropdownMenuItem } from "@/components/ui/dropdown-menu";
+import { PlusCircle, Search, ListFilter, Trash2, Milestone, Phone, Send, UserCheck, Bot, Users, Loader2, MoreHorizontal } from "lucide-react";
+import { useAuthStore, getUsers, type User } from "@/store/auth";
+import { Checkbox } from '@/components/ui/checkbox';
+import type { CheckedState } from '@radix-ui/react-checkbox';
+import { useToast } from '@/hooks/use-toast';
+import { getDemands, deleteDemand, type Demand } from '@/store/demands';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
+import { DemandFormDialog } from '@/components/features/demand-pool/demand-form-dialog';
+import { RecommendationDialog } from '@/components/features/demand-pool/recommendation-dialog';
 
-const mockDemands: Demand[] = [
-  {
-    id: '1',
-    title: '企业年会礼品采购',
-    description: '需要采购200份年会礼品，预算每份100-200元，要求包装精美，适合企业员工',
-    category: '礼品',
-    budget: '¥20,000 - ¥40,000',
-    deadline: '2024-01-15',
-    status: 'pending',
-    createdAt: '2024-01-01',
-    creator: '张经理'
-  },
-  {
-    id: '2',
-    title: '办公室装修设计',
-    description: '500平米办公室需要重新装修设计，现代简约风格，预算50万',
-    category: '装修',
-    budget: '¥500,000',
-    deadline: '2024-02-28',
-    status: 'matched',
-    createdAt: '2024-01-02',
-    creator: '李总'
-  },
-  {
-    id: '3',
-    title: '员工培训课程',
-    description: '需要为50名员工提供专业技能培训，包括线上和线下课程',
-    category: '培训',
-    budget: '¥100,000 - ¥150,000',
-    deadline: '2024-03-01',
-    status: 'pending',
-    createdAt: '2024-01-03',
-    creator: '王主管'
-  }
-]
+const statusVariantMap: { [key in Demand['status']]: "default" | "secondary" | "destructive" | "outline" } = {
+  '开放中': 'default',
+  '洽谈中': 'secondary',
+  '已完成': 'outline',
+  '已关闭': 'destructive',
+};
 
 export default function DemandPoolPage() {
-  const { role } = useAuthStore()
-  const [demands, setDemands] = useState<Demand[]>(mockDemands)
-  const [selectedRows, setSelectedRows] = useState<string[]>([])
-  const [isRecDialogOpen, setIsRecDialogOpen] = useState(false)
-  const [selectedDemand, setSelectedDemand] = useState<Demand | null>(null)
-  const [isNewDemandOpen, setIsNewDemandOpen] = useState(false)
-  const [searchTerm, setSearchTerm] = useState('')
+  const { role } = useAuthStore();
+  const [creatives, setCreatives] = useState<User[]>([]);
+  const [demands, setDemands] = useState<Demand[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isRecDialogOpen, setRecDialogOpen] = useState(false);
+  const [selectedDemand, setSelectedDemand] = useState<Demand | null>(null);
+  const [selectedRows, setSelectedRows] = useState<string[]>([]);
+  const { toast } = useToast();
+  
+  useEffect(() => {
+    async function fetchData() {
+        setIsLoading(true);
+        try {
+            const [allUsers, allDemands] = await Promise.all([getUsers(), getDemands()]);
+            const creativeUsers = allUsers.filter(user => user.role === 'creator' || user.role === 'supplier');
+            setCreatives(creativeUsers);
+            setDemands(allDemands);
+        } catch (error) {
+            console.error("Failed to fetch page data:", error);
+             toast({ variant: "destructive", title: "加载失败", description: "无法从服务器获取页面数据。" });
+        } finally {
+            setIsLoading(false);
+        }
+    }
+    fetchData();
+  }, [toast]);
 
-  const isAdmin = role === 'admin'
+  const handleAddDemand = (newDemand: Demand) => {
+    setDemands(prev => [newDemand, ...prev]);
+  };
+  
+  const handleDeleteDemand = async (demandId: string) => {
+    try {
+      await deleteDemand(demandId);
+      setDemands(prev => prev.filter(d => d.id !== demandId));
+      toast({ title: "成功", description: "需求已成功删除。" });
+    } catch (error) {
+      console.error("Failed to delete demand:", error);
+      toast({ variant: "destructive", title: "删除失败", description: "无法删除该需求，请稍后再试。" });
+    }
+  }
 
-  const handleSelectRow = (demandId: string, checked: boolean) => {
+
+  const handleRecommendClick = (demand: Demand) => {
+    setSelectedDemand(demand);
+    setSelectedRows([]); // Clear batch selection when opening single
+    setRecDialogOpen(true);
+  };
+  
+  const handleBatchRecommendClick = () => {
+      setSelectedDemand(null); // Clear single selection
+      setRecDialogOpen(true);
+  }
+
+  const handleSelectRow = (id: string, checked: CheckedState) => {
     if (checked) {
-      setSelectedRows(prev => [...prev, demandId])
+      setSelectedRows(prev => [...prev, id]);
     } else {
-      setSelectedRows(prev => prev.filter(id => id !== demandId))
+      setSelectedRows(prev => prev.filter(rowId => rowId !== id));
     }
-  }
+  };
 
-  const handleSelectAll = (checked: boolean) => {
+  const handleSelectAll = (checked: CheckedState) => {
     if (checked) {
-      setSelectedRows(demands.map(d => d.id))
+      setSelectedRows(demands.map(d => d.id));
     } else {
-      setSelectedRows([])
+      setSelectedRows([]);
     }
-  }
+  };
 
-  const handleBatchRecommend = () => {
-    setSelectedDemand(null)
-    setIsRecDialogOpen(true)
-  }
-
-  const handleSingleRecommend = (demand: Demand) => {
-    setSelectedDemand(demand)
-    setIsRecDialogOpen(true)
-  }
-
-  const handleNewDemand = (formData: any) => {
-    const newDemand: Demand = {
-      id: Date.now().toString(),
-      title: formData.title,
-      description: formData.description,
-      category: formData.category,
-      budget: formData.budget,
-      deadline: formData.deadline,
-      status: 'pending',
-      createdAt: new Date().toISOString().split('T')[0],
-      creator: '当前用户'
-    }
-    setDemands(prev => [newDemand, ...prev])
-    setIsNewDemandOpen(false)
-  }
-
-  const filteredDemands = demands.filter(demand =>
-    demand.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    demand.description.toLowerCase().includes(searchTerm.toLowerCase())
-  )
-
-  const getStatusBadge = (status: Demand['status']) => {
-    const variants = {
-      pending: 'default',
-      matched: 'secondary',
-      completed: 'outline'
-    } as const
-
-    const labels = {
-      pending: '待匹配',
-      matched: '已匹配',
-      completed: '已完成'
-    }
-
-    return (
-      <Badge variant={variants[status]}>
-        {labels[status]}
-      </Badge>
-    )
-  }
+  const selectedDemandsForDialog = demands.filter(d => selectedRows.includes(d.id));
 
   return (
-    <AppLayout>
-      <div className="max-w-7xl mx-auto">
-        <div className="mb-6">
-          <h1 className="text-3xl font-bold font-headline mb-2">需求池</h1>
-          <p className="text-muted-foreground">管理和匹配各类需求</p>
+    <>
+      <div className="space-y-6">
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-3xl font-headline font-bold">需求池</h1>
+            <p className="text-muted-foreground">浏览、承接或在生态系统中发布需求。</p>
+          </div>
+          {role === 'user' && <DemandFormDialog onAddDemand={handleAddDemand} />}
         </div>
 
-        {/* 操作栏 */}
-        <div className="flex flex-col sm:flex-row gap-4 mb-6">
-          <div className="flex-1 flex gap-2">
-            <div className="relative flex-1">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-              <Input
-                placeholder="搜索需求..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="pl-10"
-              />
-            </div>
-            <Button variant="outline">
-              <Filter className="h-4 w-4 mr-2" />
-              筛选
-            </Button>
-          </div>
-          
-          <div className="flex gap-2">
-            <Dialog open={isNewDemandOpen} onOpenChange={setIsNewDemandOpen}>
-              <DialogTrigger asChild>
-                <Button>
-                  <Plus className="h-4 w-4 mr-2" />
-                  发布新需求
-                </Button>
-              </DialogTrigger>
-              <DialogContent>
-                <DialogHeader>
-                  <DialogTitle>发布新需求</DialogTitle>
-                </DialogHeader>
-                <NewDemandForm onSubmit={handleNewDemand} />
-              </DialogContent>
-            </Dialog>
-
-            {isAdmin && (
-              <Button
-                variant="outline"
-                onClick={handleBatchRecommend}
-                disabled={selectedRows.length === 0}
-              >
-                <Bot className="h-4 w-4 mr-2" />
-                AI批量推荐 ({selectedRows.length})
-              </Button>
-            )}
-          </div>
-        </div>
-
-        {/* 需求列表 */}
         <Card>
-          <CardContent className="p-0">
-            <div className="overflow-x-auto">
-              <table className="w-full">
-                <thead className="border-b">
-                  <tr>
-                    {isAdmin && (
-                      <th className="text-left p-4">
-                        <Checkbox
-                          checked={selectedRows.length === demands.length && demands.length > 0}
-                          onCheckedChange={handleSelectAll}
-                        />
-                      </th>
-                    )}
-                    <th className="text-left p-4">需求标题</th>
-                    <th className="text-left p-4">分类</th>
-                    <th className="text-left p-4">预算</th>
-                    <th className="text-left p-4">截止日期</th>
-                    <th className="text-left p-4">状态</th>
-                    <th className="text-left p-4">创建者</th>
-                    {isAdmin && <th className="text-left p-4">操作</th>}
-                  </tr>
-                </thead>
-                <tbody>
-                  {filteredDemands.map((demand) => (
-                    <tr key={demand.id} className="border-b hover:bg-muted/50">
-                      {isAdmin && (
-                        <td className="p-4">
-                          <Checkbox
-                            checked={selectedRows.includes(demand.id)}
-                            onCheckedChange={(checked) => handleSelectRow(demand.id, checked as boolean)}
-                          />
-                        </td>
-                      )}
-                      <td className="p-4">
-                        <div>
-                          <div className="font-medium">{demand.title}</div>
-                          <div className="text-sm text-muted-foreground mt-1 max-w-xs truncate">
-                            {demand.description}
-                          </div>
-                        </div>
-                      </td>
-                      <td className="p-4">
-                        <Badge variant="outline">{demand.category}</Badge>
-                      </td>
-                      <td className="p-4">{demand.budget}</td>
-                      <td className="p-4">{demand.deadline}</td>
-                      <td className="p-4">{getStatusBadge(demand.status)}</td>
-                      <td className="p-4">{demand.creator}</td>
-                      {isAdmin && (
-                        <td className="p-4">
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            onClick={() => handleSingleRecommend(demand)}
-                          >
-                            <Bot className="h-4 w-4 mr-1" />
-                            推荐
-                          </Button>
-                        </td>
-                      )}
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+          <CardHeader>
+            <div className="flex items-center gap-4">
+              <div className="relative flex-1">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <Input placeholder="按标题或标签搜索..." className="pl-10" />
+              </div>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="outline">
+                    <ListFilter className="mr-2 h-4 w-4" />
+                    筛选
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  <DropdownMenuLabel>筛选条件</DropdownMenuLabel>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuCheckboxItem>类别</DropdownMenuCheckboxItem>
+                  <DropdownMenuCheckboxItem>状态</DropdownMenuCheckboxItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+               {role === 'admin' && (
+                <Button onClick={handleBatchRecommendClick} disabled={selectedRows.length === 0}>
+                  <Users className="mr-2 h-4 w-4" />
+                  批量推荐 ({selectedRows.length})
+                </Button>
+              )}
             </div>
+          </CardHeader>
+          <CardContent>
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  {role === 'admin' && (
+                    <TableHead className="w-[50px]">
+                      <Checkbox
+                        onCheckedChange={handleSelectAll}
+                        checked={selectedRows.length === demands.length && demands.length > 0}
+                        aria-label="选择全部"
+                      />
+                    </TableHead>
+                  )}
+                  <TableHead>需求标题</TableHead>
+                  <TableHead>预算</TableHead>
+                  <TableHead>类别</TableHead>
+                  <TableHead>状态</TableHead>
+                  <TableHead>发布于</TableHead>
+                  <TableHead className="text-right">操作</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {isLoading ? (
+                    <TableRow>
+                        <TableCell colSpan={role === 'admin' ? 7 : 6} className="h-24 text-center">
+                            <Loader2 className="mx-auto h-8 w-8 animate-spin text-primary" />
+                        </TableCell>
+                    </TableRow>
+                ) : demands.length === 0 ? (
+                    <TableRow>
+                        <TableCell colSpan={role === 'admin' ? 7 : 6} className="h-24 text-center">
+                            暂无需求。
+                        </TableCell>
+                    </TableRow>
+                ) : (
+                    demands.map((demand) => (
+                      <TableRow key={demand.id} data-state={selectedRows.includes(demand.id) ? "selected" : undefined}>
+                        {role === 'admin' && (
+                          <TableCell>
+                            <Checkbox
+                              onCheckedChange={(checked) => handleSelectRow(demand.id, checked)}
+                              checked={selectedRows.includes(demand.id)}
+                              aria-label={`选择需求 ${demand.title}`}
+                            />
+                          </TableCell>
+                        )}
+                        <TableCell className="font-medium">{demand.title}</TableCell>
+                        <TableCell>{demand.budget}</TableCell>
+                        <TableCell>{demand.category}</TableCell>
+                        <TableCell>
+                          <Badge variant={statusVariantMap[demand.status] || 'default'}>{demand.status}</Badge>
+                        </TableCell>
+                        <TableCell>{demand.created}</TableCell>
+                        <TableCell className="text-right space-x-1">
+                          {role === 'admin' && (
+                            <AlertDialog>
+                                <DropdownMenu>
+                                    <DropdownMenuTrigger asChild>
+                                        <Button variant="ghost" size="icon">
+                                            <MoreHorizontal className="h-4 w-4" />
+                                            <span className="sr-only">打开操作菜单</span>
+                                        </Button>
+                                    </DropdownMenuTrigger>
+                                    <DropdownMenuContent align="end">
+                                        <DropdownMenuItem onClick={() => handleRecommendClick(demand)}>
+                                            <Send className="mr-2 h-4 w-4" />推荐执行者
+                                        </DropdownMenuItem>
+                                        <DropdownMenuSeparator />
+                                        <AlertDialogTrigger asChild>
+                                            <DropdownMenuItem className="text-destructive focus:text-destructive">
+                                                <Trash2 className="mr-2 h-4 w-4"/> 删除需求
+                                            </DropdownMenuItem>
+                                        </AlertDialogTrigger>
+                                    </DropdownMenuContent>
+                                </DropdownMenu>
+                                <AlertDialogContent>
+                                    <AlertDialogHeader>
+                                    <AlertDialogTitle>您确定要删除此需求吗？</AlertDialogTitle>
+                                    <AlertDialogDescription>
+                                        此操作无法撤销。这将永久删除需求 “<span className="font-bold">{demand.title}</span>”。
+                                    </AlertDialogDescription>
+                                    </AlertDialogHeader>
+                                    <AlertDialogFooter>
+                                    <AlertDialogCancel>取消</AlertDialogCancel>
+                                    <AlertDialogAction onClick={() => handleDeleteDemand(demand.id)} className="bg-destructive hover:bg-destructive/90">确认删除</AlertDialogAction>
+                                    </AlertDialogFooter>
+                                </AlertDialogContent>
+                            </AlertDialog>
+                          )}
+                          {(role === 'supplier' || role === 'creator') && demand.status === '开放中' && (
+                            <Button variant="outline" size="sm"><Milestone className="mr-2 h-4 w-4" />抢单</Button>
+                          )}
+                           {(role === 'supplier' || role === 'creator') && demand.status !== '开放中' && (
+                            <Button variant="outline" size="sm" disabled><Phone className="mr-2 h-4 w-4" />沟通</Button>
+                          )}
+                        </TableCell>
+                      </TableRow>
+                    ))
+                )}
+              </TableBody>
+            </Table>
           </CardContent>
         </Card>
-
-        {/* AI推荐对话框 */}
-        <Dialog open={isRecDialogOpen} onOpenChange={setIsRecDialogOpen}>
-          <DialogContent className="max-w-4xl">
-            <DialogHeader>
-              <DialogTitle>AI智能推荐</DialogTitle>
-            </DialogHeader>
-            <RecommendationDialog
-              demand={selectedDemand}
-              selectedDemands={selectedRows.map(id => demands.find(d => d.id === id)!).filter(Boolean)}
-              onClose={() => setIsRecDialogOpen(false)}
-            />
-          </DialogContent>
-        </Dialog>
       </div>
-    </AppLayout>
-  )
-}
-
-// 新需求表单组件
-function NewDemandForm({ onSubmit }: { onSubmit: (data: any) => void }) {
-  const [formData, setFormData] = useState({
-    title: '',
-    description: '',
-    category: '',
-    budget: '',
-    deadline: ''
-  })
-
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault()
-    onSubmit(formData)
-  }
-
-  return (
-    <form onSubmit={handleSubmit} className="space-y-4">
-      <div>
-        <label className="text-sm font-medium mb-2 block">需求标题</label>
-        <Input
-          value={formData.title}
-          onChange={(e) => setFormData(prev => ({ ...prev, title: e.target.value }))}
-          placeholder="请输入需求标题"
-          required
+      {(isRecDialogOpen) && (
+        <RecommendationDialog
+          demand={selectedDemand}
+          selectedDemands={selectedDemandsForDialog}
+          creatives={creatives}
+          open={isRecDialogOpen}
+          onOpenChange={setRecDialogOpen}
         />
-      </div>
-      
-      <div>
-        <label className="text-sm font-medium mb-2 block">需求描述</label>
-        <textarea
-          value={formData.description}
-          onChange={(e) => setFormData(prev => ({ ...prev, description: e.target.value }))}
-          placeholder="请详细描述您的需求"
-          className="w-full min-h-[100px] p-3 border rounded-md resize-none"
-          required
-        />
-      </div>
-
-      <div className="grid grid-cols-2 gap-4">
-        <div>
-          <label className="text-sm font-medium mb-2 block">分类</label>
-          <Input
-            value={formData.category}
-            onChange={(e) => setFormData(prev => ({ ...prev, category: e.target.value }))}
-            placeholder="如：礼品、装修、培训"
-            required
-          />
-        </div>
-        
-        <div>
-          <label className="text-sm font-medium mb-2 block">预算</label>
-          <Input
-            value={formData.budget}
-            onChange={(e) => setFormData(prev => ({ ...prev, budget: e.target.value }))}
-            placeholder="如：¥10,000 - ¥20,000"
-            required
-          />
-        </div>
-      </div>
-
-      <div>
-        <label className="text-sm font-medium mb-2 block">截止日期</label>
-        <Input
-          type="date"
-          value={formData.deadline}
-          onChange={(e) => setFormData(prev => ({ ...prev, deadline: e.target.value }))}
-          required
-        />
-      </div>
-
-      <div className="flex justify-end gap-2 pt-4">
-        <Button type="submit">发布需求</Button>
-      </div>
-    </form>
-  )
-}
-
-// AI推荐对话框组件
-function RecommendationDialog({ 
-  demand, 
-  selectedDemands, 
-  onClose 
-}: { 
-  demand: Demand | null
-  selectedDemands: Demand[]
-  onClose: () => void 
-}) {
-  const [isLoading, setIsLoading] = useState(false)
-  const [results, setResults] = useState<any[]>([])
-
-  const handleAiRecommend = async () => {
-    setIsLoading(true)
-    
-    // 模拟AI推荐
-    setTimeout(() => {
-      setResults([
-        {
-          id: '1',
-          name: '推荐供应商A',
-          score: 95,
-          description: '专业度高，价格合理，服务优质',
-          contact: '138****1234'
-        },
-        {
-          id: '2',
-          name: '推荐供应商B',
-          score: 88,
-          description: '经验丰富，响应速度快',
-          contact: '139****5678'
-        }
-      ])
-      setIsLoading(false)
-    }, 2000)
-  }
-
-  const targetDemands = demand ? [demand] : selectedDemands
-
-  return (
-    <div className="space-y-4">
-      <div>
-        <h3 className="font-medium mb-2">目标需求：</h3>
-        {targetDemands.map((d) => (
-          <div key={d.id} className="p-3 bg-muted rounded-md mb-2">
-            <div className="font-medium">{d.title}</div>
-            <div className="text-sm text-muted-foreground">{d.description}</div>
-          </div>
-        ))}
-      </div>
-
-      {!isLoading && results.length === 0 && (
-        <div className="text-center py-8">
-          <Button onClick={handleAiRecommend}>
-            <Bot className="h-4 w-4 mr-2" />
-            启动AI推荐
-          </Button>
-        </div>
       )}
-
-      {isLoading && (
-        <div className="text-center py-8">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-4"></div>
-          <p>AI正在分析需求并匹配供应商...</p>
-        </div>
-      )}
-
-      {results.length > 0 && (
-        <div>
-          <h3 className="font-medium mb-4">推荐结果：</h3>
-          <div className="space-y-3">
-            {results.map((result) => (
-              <div key={result.id} className="p-4 border rounded-md">
-                <div className="flex justify-between items-start mb-2">
-                  <h4 className="font-medium">{result.name}</h4>
-                  <Badge variant="default">匹配度: {result.score}%</Badge>
-                </div>
-                <p className="text-sm text-muted-foreground mb-2">{result.description}</p>
-                <p className="text-sm">联系方式: {result.contact}</p>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
-      <div className="flex justify-end gap-2 pt-4">
-        <Button variant="outline" onClick={onClose}>
-          关闭
-        </Button>
-      </div>
-    </div>
-  )
+    </>
+  );
 }

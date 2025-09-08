@@ -1,135 +1,174 @@
-'use client'
 
-import { useEffect, useState } from 'react'
-import { usePathname, useRouter } from 'next/navigation'
-import { useAuthStore, type Role } from '@/store/auth'
+'use client';
+
+import * as React from 'react';
+import Link from 'next/link';
+import { usePathname, useRouter } from 'next/navigation';
+import { 
+  Bot, 
+  ClipboardList, 
+  Palette, 
+  Search, 
+  LayoutGrid, 
+  UploadCloud, 
+  BookCopy, 
+  Library, 
+  Terminal, 
+  KeyRound,
+  LogOut,
+  Package
+} from 'lucide-react';
 import {
   SidebarProvider,
   Sidebar,
   SidebarHeader,
   SidebarContent,
-  SidebarFooter,
-  SidebarInset,
+  SidebarTrigger,
   SidebarMenu,
   SidebarMenuItem,
   SidebarMenuButton,
-} from '@/components/ui/sidebar'
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu'
-import { Button } from '@/components/ui/button'
-import { Home, Users, ShoppingBag, User, LogOut } from 'lucide-react'
+  SidebarInset,
+  SidebarFooter,
+  SidebarSeparator,
+} from '@/components/ui/sidebar';
+import { useAuthStore, type Role } from '@/store/auth';
+import { Avatar, AvatarFallback, AvatarImage } from './ui/avatar';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from './ui/dropdown-menu';
+import { Button } from './ui/button';
+import { Skeleton } from './ui/skeleton';
 
-interface NavItem {
-  title: string
-  url: string
-  icon: React.ComponentType<{ className?: string }>
-}
-
-const navItemsByRole: Record<Role, NavItem[]> = {
-  admin: [
-    { title: 'AI购物助手', url: '/', icon: Home },
-    { title: '需求池', url: '/demand-pool', icon: ShoppingBag },
-    { title: '供应商中心', url: '/suppliers', icon: Users },
-  ],
-  supplier: [
-    { title: 'AI购物助手', url: '/', icon: Home },
-    { title: '供应商中心', url: '/suppliers', icon: Users },
-  ],
+const navItemsByRole: Record<Role, { href: string; label: string; icon: React.ElementType }[]> = {
   user: [
-    { title: 'AI购物助手', url: '/', icon: Home },
+    { href: '/', label: 'AI 购物助手', icon: Bot },
+    { href: '/demand-pool', label: '需求池', icon: ClipboardList },
+    { href: '/designers', label: '创意设计师', icon: Palette },
+    { href: '/search', label: '智能搜索', icon: Search },
   ],
   creator: [
-    { title: 'AI购物助手', url: '/', icon: Home },
+    { href: '/', label: 'AI 购物助手', icon: Bot },
+    { href: '/demand-pool', label: '需求池', icon: ClipboardList },
+    { href: '/designers', label: '创意设计师', icon: Palette },
+    { href: '/search', label: '智能搜索', icon: Search },
+    { href: '/creator-workbench', label: '创意者工作台', icon: LayoutGrid },
   ],
-}
+  supplier: [
+    { href: '/', label: 'AI 购物助手', icon: Bot },
+    { href: '/demand-pool', label: '需求池', icon: ClipboardList },
+    { href: '/designers', label: '创意设计师', icon: Palette },
+    { href: '/search', label: '智能搜索', icon: Search },
+    { href: '/suppliers', label: '供应商中心', icon: UploadCloud },
+  ],
+  admin: [
+    { href: '/', label: 'AI 购物助手', icon: Bot },
+    { href: '/demand-pool', label: '需求池', icon: ClipboardList },
+    { href: '/designers', label: '创意设计师', icon: Palette },
+    { href: '/search', label: '智能搜索', icon: Search },
+    { href: '/creator-workbench', label: '创意者工作台', icon: LayoutGrid },
+    { href: '/suppliers', label: '供应商中心', icon: UploadCloud },
+    { href: '/knowledge-base', label: '知识库管理', icon: BookCopy },
+    { href: '/public-resources', label: '公共资源库', icon: Library },
+    { href: '/prompts', label: '提示词管理', icon: Terminal },
+    { href: '/permissions', label: '权限管理', icon: KeyRound },
+  ],
+};
+
 
 export function AppLayout({ children }: { children: React.ReactNode }) {
-  const { role, user, logout } = useAuthStore()
-  const pathname = usePathname()
-  const router = useRouter()
-  const [mounted, setMounted] = useState(false)
+  const [mounted, setMounted] = React.useState(false);
+  const pathname = usePathname();
+  const router = useRouter();
+  const { role, user, logout } = useAuthStore();
+  
+  React.useEffect(() => {
+    setMounted(true);
+  }, []);
 
-  useEffect(() => {
-    setMounted(true)
-  }, [])
-
-  useEffect(() => {
-    if (mounted && !role) {
-      router.replace('/login')
+  React.useEffect(() => {
+    if (mounted && !role && pathname !== '/login') {
+      router.replace('/login');
     }
-  }, [mounted, role, router])
+  }, [mounted, role, pathname, router]);
 
-  if (!mounted || !role || !user) {
-    return null
+
+  const currentNavItems = role ? navItemsByRole[role] : [];
+  
+  const handleLogout = () => {
+    logout();
+    router.push('/login');
+  };
+  
+  // If not mounted or on login page, don't render the layout
+  if (!mounted || pathname === '/login') {
+    return <>{children}</>;
   }
-
-  const currentNavItems = navItemsByRole[role] || []
+  
+  // If no role but not on login, show a loading skeleton while redirecting
+  if (!role) {
+      return <div className="flex h-screen w-screen items-center justify-center"><Skeleton className="h-full w-full" /></div>;
+  }
 
   return (
     <SidebarProvider>
-      <Sidebar>
-        <SidebarHeader>
-          <div className="flex items-center gap-2 px-4 py-2">
-            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary text-primary-foreground">
-              <span className="text-sm font-bold">AI</span>
+        <Sidebar>
+          <SidebarHeader>
+            <div className="flex items-center gap-2 p-2 justify-center group-data-[collapsible=icon]:justify-center">
+              <Package className="h-8 w-8 text-primary group-data-[collapsible=icon]:h-6 group-data-[collapsible=icon]:w-6 transition-all" />
+              <h1 className="text-xl font-bold font-headline group-data-[collapsible=icon]:hidden">AI 智能匹配</h1>
             </div>
-            <div>
-              <h1 className="text-lg font-semibold font-headline">智能匹配平台</h1>
-              <p className="text-xs text-muted-foreground">AI Matching Platform</p>
-            </div>
-          </div>
-        </SidebarHeader>
-
-        <SidebarContent>
-          <SidebarMenu>
-            {currentNavItems.map((item) => {
-              const Icon = item.icon
-              const isActive = pathname === item.url
-              
-              return (
-                <SidebarMenuItem key={item.url}>
-                  <SidebarMenuButton
-                    asChild
-                    className={isActive ? 'bg-accent text-accent-foreground' : ''}
-                  >
-                    <a href={item.url}>
-                      <Icon className="h-4 w-4" />
-                      <span>{item.title}</span>
-                    </a>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-              )
-            })}
-          </SidebarMenu>
-        </SidebarContent>
-
-        <SidebarFooter>
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="ghost" className="w-full justify-start">
-                <User className="h-4 w-4" />
-                <span className="truncate">{user.name}</span>
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-56">
-              <DropdownMenuItem onClick={logout}>
-                <LogOut className="h-4 w-4" />
-                <span>退出登录</span>
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
-        </SidebarFooter>
-      </Sidebar>
-
-      <SidebarInset>
-        <main className="flex-1 overflow-auto p-6">
-          {children}
-        </main>
-      </SidebarInset>
+          </SidebarHeader>
+          <SidebarContent>
+            <SidebarMenu>
+               {currentNavItems.map((item) => (
+                  <SidebarMenuItem key={item.href}>
+                    <SidebarMenuButton asChild isActive={pathname === item.href} tooltip={{children: item.label, side: "right"}}>
+                      <Link href={item.href}>
+                        <item.icon />
+                        <span>{item.label}</span>
+                      </Link>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                ))}
+            </SidebarMenu>
+          </SidebarContent>
+           <SidebarSeparator />
+           <SidebarFooter>
+             <DropdownMenu>
+               <DropdownMenuTrigger asChild>
+                 <Button variant="ghost" className="h-auto w-full justify-start p-2">
+                    <div className="flex justify-between items-center w-full">
+                       <div className="flex items-center gap-2">
+                         <Avatar className="w-8 h-8">
+                             <AvatarImage src={`https://placehold.co/32x32.png`} data-ai-hint="user avatar" />
+                             <AvatarFallback>{user?.name.charAt(0)}</AvatarFallback>
+                         </Avatar>
+                         <div className="flex flex-col items-start group-data-[collapsible=icon]:hidden">
+                             <span className="font-semibold text-sm">{user?.name}</span>
+                             <span className="text-xs text-muted-foreground">{user?.email}</span>
+                         </div>
+                     </div>
+                    </div>
+                 </Button>
+               </DropdownMenuTrigger>
+               <DropdownMenuContent side="right" align="end" className="w-56">
+                 <DropdownMenuLabel>我的账户</DropdownMenuLabel>
+                 <DropdownMenuSeparator />
+                 <DropdownMenuItem onClick={handleLogout}>
+                   <LogOut className="mr-2 h-4 w-4" />
+                   <span>退出登录</span>
+                 </DropdownMenuItem>
+               </DropdownMenuContent>
+             </DropdownMenu>
+           </SidebarFooter>
+        </Sidebar>
+        <SidebarInset>
+          <header className="sticky top-0 z-10 flex h-14 items-center gap-4 border-b bg-background/80 backdrop-blur-sm px-4 md:hidden">
+            <SidebarTrigger variant="outline" size="icon" className="h-8 w-8" />
+            <h1 className="text-lg font-semibold font-headline">AI 智能匹配</h1>
+          </header>
+          <main className="flex-1 overflow-auto p-4 sm:px-6 sm:py-6">
+            {children}
+          </main>
+        </SidebarInset>
     </SidebarProvider>
-  )
+  );
 }

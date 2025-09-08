@@ -1,0 +1,16 @@
+{
+  "node": {
+    "40356ea3f972cec96242a3bda0e3d0a5f05792bd66": {
+      "workers": {
+        "app/suppliers/page": {
+          "moduleId": "[project]/.next-internal/server/app/suppliers/page/actions.js { ACTIONS_MODULE0 => \"[project]/src/ai/flows/evaluate-seller-data.ts [app-rsc] (ecmascript)\" } [app-rsc] (server actions loader, ecmascript)",
+          "async": false
+        }
+      },
+      "layer": {
+        "app/suppliers/page": "action-browser"
+      }
+    }
+  },
+  "edge": {}
+}

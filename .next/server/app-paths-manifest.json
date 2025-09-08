@@ -1,5 +1,10 @@
 {
-  "/suppliers/page": "app/suppliers/page.js",
+  "/_not-found/page": "app/_not-found/page.js",
+  "/creator-workbench/page": "app/creator-workbench/page.js",
+  "/demand-pool/page": "app/demand-pool/page.js",
+  "/designers/page": "app/designers/page.js",
+  "/favicon.ico/route": "app/favicon.ico/route.js",
   "/login/page": "app/login/page.js",
-  "/page": "app/page.js"
+  "/page": "app/page.js",
+  "/suppliers/page": "app/suppliers/page.js"
 }

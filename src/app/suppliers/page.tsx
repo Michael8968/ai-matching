@@ -1,374 +1,329 @@
-'use client'
 
-import { useState } from 'react'
-import { AppLayout } from '@/components/app-layout'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
-import { Badge } from '@/components/ui/badge'
-import { Plus, Save, Trash2, Upload, Bot } from 'lucide-react'
+'use client';
 
-interface ProductService {
-  id: string
-  name: string
-  description: string
-  category: string
-  price: string
-  unit: string
-  status: 'active' | 'inactive'
+import { useState } from 'react';
+import { useAuthStore } from "@/store/auth";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { DataProcessor } from "@/components/features/data-processor";
+import { User, List, UploadCloud, PlusCircle, Trash2, Image as ImageIcon, Video, ChevronsUpDown } from "lucide-react";
+import { Label } from "@/components/ui/label";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+
+type SupplementaryField = {
+  id: string;
+  key: string;
+  value: string;
+  mapping: string;
+};
+
+type MediaField = {
+    id: string;
+    type: 'image' | 'video';
+    file: File | null;
+    preview: string;
+    mapping: string;
 }
 
-interface SupplementaryField {
-  id: string
-  label: string
-  value: string
-  type: 'text' | 'number' | 'date'
+type ProductService = {
+  id: string;
+  name: string;
+  description: string;
+  price: string;
+  sku: string;
+  category: string;
+  link: string;
+  media: MediaField[];
+  supplementaryFields: SupplementaryField[];
+};
+
+const initialProductService = (): ProductService => ({
+  id: `product_${Date.now()}_${Math.random()}`,
+  name: '新产品/服务',
+  description: '详细描述您的产品或服务。',
+  price: '0.00',
+  sku: `SKU-${Math.random().toString(36).substr(2, 9).toUpperCase()}`,
+  category: '默认分类',
+  link: 'https://example.com',
+  media: [
+    { id: 'pano', type: 'image', file: null, preview: '', mapping: '' },
+    { id: 'top', type: 'image', file: null, preview: '', mapping: '' },
+    { id: 'bottom', type: 'image', file: null, preview: '', mapping: '' },
+    { id: 'left', type: 'image', file: null, preview: '', mapping: '' },
+    { id: 'right', type: 'image', file: null, preview: '', mapping: '' },
+    { id: 'front', type: 'image', file: null, preview: '', mapping: '' },
+    { id: 'back', type: 'image', file: null, preview: '', mapping: '' },
+  ],
+  supplementaryFields: [],
+});
+
+
+const productCardMappingOptions = [
+    { value: 'defaultImage', label: '默认首图' },
+    { value: 'topImage', label: '上视图' },
+    { value: 'bottomImage', label: '下视图' },
+    { value: 'leftImage', label: '左视图' },
+    { value: 'rightImage', label: '右视图' },
+    { value: 'frontImage', label: '前视图' },
+    { value: 'backImage', label: '后视图' },
+    { value: 'description', label: '商品介绍' },
+    { value: 'feature_1', label: '特性1' },
+    { value: 'feature_2', label: '特性2' },
+];
+
+const mediaSlotLabels: {[key: string]: string} = {
+    pano: '全景', top: '上', bottom: '下', left: '左', right: '右', front: '前', back: '后'
 }
 
-const mockProducts: ProductService[] = [
-  {
-    id: '1',
-    name: '企业礼品定制',
-    description: '提供各类企业礼品定制服务，包括办公用品、纪念品等',
-    category: '礼品定制',
-    price: '100',
-    unit: '件',
-    status: 'active'
-  },
-  {
-    id: '2',
-    name: '办公室装修设计',
-    description: '专业办公室装修设计服务，现代简约风格',
-    category: '装修设计',
-    price: '500',
-    unit: '平米',
-    status: 'active'
-  },
-  {
-    id: '3',
-    name: '员工培训课程',
-    description: '提供专业技能培训、管理培训等各类培训课程',
-    category: '培训服务',
-    price: '2000',
-    unit: '人/天',
-    status: 'inactive'
-  }
-]
+function SupplementaryFieldsManager({ fields, onUpdate, objectType }: { fields: SupplementaryField[], onUpdate: (fields: SupplementaryField[]) => void, objectType: string }) {
+    const addField = () => {
+        onUpdate([...fields, { id: `${objectType}_sup_${Date.now()}`, key: '', value: '', mapping: '' }]);
+    };
 
-const mockSupplementaryFields: SupplementaryField[] = [
-  {
-    id: '1',
-    label: '公司规模',
-    value: '50-100人',
-    type: 'text'
-  },
-  {
-    id: '2',
-    label: '成立时间',
-    value: '2015-01-01',
-    type: 'date'
-  },
-  {
-    id: '3',
-    label: '服务客户数',
-    value: '500',
-    type: 'number'
-  }
-]
+    const updateField = (id: string, newKey: string, newValue: any) => {
+        onUpdate(fields.map(f => f.id === id ? { ...f, [newKey]: newValue } : f));
+    };
+
+    const removeField = (id: string) => {
+        onUpdate(fields.filter(f => f.id !== id));
+    };
+
+    return (
+        <div className="space-y-4 rounded-lg border p-4">
+            <h4 className="font-semibold">补充内容</h4>
+            {fields.map((field) => (
+                <div key={field.id} className="grid grid-cols-1 md:grid-cols-[1fr_2fr_1fr_auto] gap-2 items-center">
+                    <Input placeholder="字段名" value={field.key} onChange={(e) => updateField(field.id, 'key', e.target.value)} />
+                    <Input placeholder="字段值" value={field.value} onChange={(e) => updateField(field.id, 'value', e.target.value)} />
+                    <Select value={field.mapping} onValueChange={(value) => updateField(field.id, 'mapping', value)}>
+                        <SelectTrigger><SelectValue placeholder="商品卡位置" /></SelectTrigger>
+                        <SelectContent>
+                            {productCardMappingOptions.map(opt => <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>)}
+                        </SelectContent>
+                    </Select>
+                    <Button variant="ghost" size="icon" onClick={() => removeField(field.id)}><Trash2 className="h-4 w-4" /></Button>
+                </div>
+            ))}
+            <Button variant="outline" size="sm" onClick={addField}><PlusCircle className="mr-2 h-4 w-4" />增加补充字段</Button>
+        </div>
+    );
+}
+
+
+function ProductServiceItem({ product, onUpdate, onRemove }: { product: ProductService, onUpdate: (product: ProductService) => void, onRemove: (id: string) => void }) {
+    
+    const handleFieldChange = (key: keyof ProductService, value: any) => {
+        onUpdate({ ...product, [key]: value });
+    }
+    
+    const handleMediaChange = (id: string, file: File | null) => {
+        if (file) {
+            const newMedia = product.media.map(m => m.id === id ? { ...m, file, preview: URL.createObjectURL(file) } : m);
+            onUpdate({ ...product, media: newMedia });
+        }
+    };
+    
+    const handleMediaMappingChange = (id: string, mapping: string) => {
+        const newMedia = product.media.map(m => m.id === id ? { ...m, mapping } : m);
+        onUpdate({ ...product, media: newMedia });
+    }
+
+    const setProductSupplementaryFields = (fields: SupplementaryField[]) => {
+        onUpdate({ ...product, supplementaryFields: fields });
+    }
+
+    return (
+        <Card className="overflow-hidden">
+            <CardHeader className="flex flex-row items-center justify-between bg-muted/50 p-4">
+                <div className="flex items-center gap-2">
+                    <ChevronsUpDown className="h-5 w-5" />
+                    <Input value={product.name} onChange={(e) => handleFieldChange('name', e.target.value)} className="text-lg font-bold w-auto" />
+                </div>
+                <Button variant="ghost" size="icon" onClick={() => onRemove(product.id)}><Trash2 className="h-4 w-4 text-destructive" /></Button>
+            </CardHeader>
+            <CardContent className="p-4 space-y-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                        <Label>价格</Label>
+                        <Input placeholder="价格" value={product.price} onChange={(e) => handleFieldChange('price', e.target.value)} />
+                    </div>
+                    <div className="space-y-2">
+                        <Label>SKU</Label>
+                        <Input placeholder="SKU" value={product.sku} onChange={(e) => handleFieldChange('sku', e.target.value)} />
+                    </div>
+                    <div className="space-y-2">
+                        <Label>类别</Label>
+                        <Input placeholder="类别" value={product.category} onChange={(e) => handleFieldChange('category', e.target.value)} />
+                    </div>
+                    <div className="space-y-2">
+                        <Label>链接</Label>
+                        <Input placeholder="产品链接" value={product.link} onChange={(e) => handleFieldChange('link', e.target.value)} />
+                    </div>
+                     <div className="space-y-2 md:col-span-2">
+                        <Label>描述</Label>
+                        <Textarea placeholder="产品描述" value={product.description} onChange={(e) => handleFieldChange('description', e.target.value)} />
+                    </div>
+                </div>
+
+                <Accordion type="single" collapsible>
+                    <AccordionItem value="media">
+                        <AccordionTrigger>媒体文件 (图片/视频)</AccordionTrigger>
+                        <AccordionContent className="p-1">
+                            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                                {product.media.map(media => (
+                                    <div key={media.id} className="space-y-2">
+                                        <div className="aspect-square border-2 border-dashed rounded-lg flex items-center justify-center relative">
+                                            {media.preview ? (
+                                                <img src={media.preview} alt="预览" className="object-cover h-full w-full rounded-md" />
+                                            ) : (
+                                                 <div className="text-center text-muted-foreground p-2">
+                                                    <ImageIcon className="mx-auto h-6 w-6"/>
+                                                    <p className="text-xs mt-1">{mediaSlotLabels[media.id]}</p>
+                                                 </div>
+                                            )}
+                                            <Input type="file" className="absolute inset-0 opacity-0 cursor-pointer" onChange={(e) => handleMediaChange(media.id, e.target.files?.[0] || null)} />
+                                        </div>
+                                        <Select value={media.mapping} onValueChange={(value) => handleMediaMappingChange(media.id, value)}>
+                                            <SelectTrigger><SelectValue placeholder="商品卡位置" /></SelectTrigger>
+                                            <SelectContent>
+                                                {productCardMappingOptions.filter(opt => opt.value.includes('Image')).map(opt => <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>)}
+                                            </SelectContent>
+                                        </Select>
+                                    </div>
+                                ))}
+                            </div>
+                        </AccordionContent>
+                    </AccordionItem>
+                </Accordion>
+                 <SupplementaryFieldsManager fields={product.supplementaryFields} onUpdate={setProductSupplementaryFields} objectType={`product_${product.id}`} />
+            </CardContent>
+        </Card>
+    );
+}
+
 
 export default function SuppliersPage() {
-  const [products, setProducts] = useState<ProductService[]>(mockProducts)
-  const [supplementaryFields, setSupplementaryFields] = useState<SupplementaryField[]>(mockSupplementaryFields)
+    const { role } = useAuthStore();
+    const [products, setProducts] = useState<ProductService[]>([initialProductService()]);
+    const [infoSupplementaryFields, setInfoSupplementaryFields] = useState<SupplementaryField[]>([]);
 
-  const addProduct = () => {
-    const newProduct: ProductService = {
-      id: Date.now().toString(),
-      name: '',
-      description: '',
-      category: '',
-      price: '',
-      unit: '',
-      status: 'active'
+
+    const addProduct = () => {
+        setProducts(prev => [...prev, initialProductService()]);
+    };
+    
+    const updateProduct = (updatedProduct: ProductService) => {
+        setProducts(prev => prev.map(p => p.id === updatedProduct.id ? updatedProduct : p));
     }
-    setProducts(prev => [...prev, newProduct])
-  }
 
-  const updateProduct = (id: string, updates: Partial<ProductService>) => {
-    setProducts(prev => prev.map(product => 
-      product.id === id ? { ...product, ...updates } : product
-    ))
-  }
+    const removeProduct = (id: string) => {
+        setProducts(prev => prev.filter(p => p.id !== id));
+    };
 
-  const removeProduct = (id: string) => {
-    setProducts(prev => prev.filter(product => product.id !== id))
-  }
-
-  const addSupplementaryField = () => {
-    const newField: SupplementaryField = {
-      id: Date.now().toString(),
-      label: '',
-      value: '',
-      type: 'text'
+    const handleInfoSupFieldsUpdate = (fields: SupplementaryField[]) => {
+        setInfoSupplementaryFields(fields);
     }
-    setSupplementaryFields(prev => [...prev, newField])
-  }
 
-  const updateSupplementaryField = (id: string, updates: Partial<SupplementaryField>) => {
-    setSupplementaryFields(prev => prev.map(field => 
-      field.id === id ? { ...field, ...updates } : field
-    ))
-  }
-
-  const removeSupplementaryField = (id: string) => {
-    setSupplementaryFields(prev => prev.filter(field => field.id !== id))
-  }
-
-  const handleDataProcessing = () => {
-    // 模拟数据处理
-    alert('数据处理功能演示：正在分析供应商数据...')
-  }
-
-  return (
-    <AppLayout>
-      <div className="max-w-7xl mx-auto">
-        <div className="mb-6">
-          <h1 className="text-3xl font-bold font-headline mb-2">供应商中心</h1>
-          <p className="text-muted-foreground">管理您的产品和服务信息</p>
-        </div>
-
-        {/* 公司基本信息 */}
-        <Card className="mb-6">
-          <CardHeader>
-            <CardTitle>公司基本信息</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
-              <div>
-                <label className="text-sm font-medium mb-2 block">公司名称</label>
-                <Input placeholder="请输入公司名称" defaultValue="示例科技有限公司" />
-              </div>
-              <div>
-                <label className="text-sm font-medium mb-2 block">联系人</label>
-                <Input placeholder="请输入联系人" defaultValue="张经理" />
-              </div>
-              <div>
-                <label className="text-sm font-medium mb-2 block">联系电话</label>
-                <Input placeholder="请输入联系电话" defaultValue="138****1234" />
-              </div>
-              <div>
-                <label className="text-sm font-medium mb-2 block">邮箱</label>
-                <Input placeholder="请输入邮箱" defaultValue="contact@example.com" />
-              </div>
+    if (role !== 'supplier' && role !== 'admin') {
+         return (
+            <div className="flex items-center justify-center h-full">
+                <Card className="w-full max-w-md">
+                    <CardHeader>
+                        <CardTitle>访问受限</CardTitle>
+                        <CardDescription>您没有权限访问此页面。</CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                        <Button onClick={() => window.location.href = '/login'} className="w-full">
+                            返回登录
+                        </Button>
+                    </CardContent>
+                </Card>
             </div>
-
+        );
+    }
+    
+    return (
+        <div className="space-y-6">
             <div>
-              <label className="text-sm font-medium mb-2 block">公司简介</label>
-              <textarea
-                placeholder="请输入公司简介"
-                className="w-full min-h-[100px] p-3 border rounded-md resize-none"
-                defaultValue="我们是一家专业的服务提供商，致力于为客户提供优质的产品和服务。"
-              />
+                <h1 className="text-3xl font-headline font-bold">供应商中心</h1>
+                <p className="text-muted-foreground">管理您的公司信息、产品和服务。</p>
             </div>
-          </CardContent>
-        </Card>
-
-        {/* 补充信息字段 */}
-        <Card className="mb-6">
-          <CardHeader>
-            <div className="flex justify-between items-center">
-              <CardTitle>补充信息</CardTitle>
-              <Button size="sm" onClick={addSupplementaryField}>
-                <Plus className="h-4 w-4 mr-2" />
-                添加字段
-              </Button>
-            </div>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-4">
-              {supplementaryFields.map((field) => (
-                <div key={field.id} className="flex gap-2 items-center">
-                  <Input
-                    placeholder="字段名称"
-                    value={field.label}
-                    onChange={(e) => updateSupplementaryField(field.id, { label: e.target.value })}
-                    className="flex-1"
-                  />
-                  <select
-                    value={field.type}
-                    onChange={(e) => updateSupplementaryField(field.id, { type: e.target.value as any })}
-                    className="px-3 py-2 border rounded-md"
-                  >
-                    <option value="text">文本</option>
-                    <option value="number">数字</option>
-                    <option value="date">日期</option>
-                  </select>
-                  <Input
-                    placeholder="字段值"
-                    value={field.value}
-                    onChange={(e) => updateSupplementaryField(field.id, { value: e.target.value })}
-                    className="flex-1"
-                  />
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={() => removeSupplementaryField(field.id)}
-                  >
-                    <Trash2 className="h-4 w-4" />
-                  </Button>
-                </div>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* 产品/服务管理 */}
-        <Card className="mb-6">
-          <CardHeader>
-            <div className="flex justify-between items-center">
-              <CardTitle>产品/服务管理</CardTitle>
-              <Button onClick={addProduct}>
-                <Plus className="h-4 w-4 mr-2" />
-                添加产品
-              </Button>
-            </div>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-4">
-              {products.map((product) => (
-                <ProductServiceItem
-                  key={product.id}
-                  product={product}
-                  onUpdate={(updates) => updateProduct(product.id, updates)}
-                  onRemove={() => removeProduct(product.id)}
-                />
-              ))}
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* 数据处理模块 */}
-        <Card>
-          <CardHeader>
-            <CardTitle>数据处理</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="border-2 border-dashed border-muted-foreground/25 rounded-lg p-8 text-center">
-              <Upload className="h-12 w-12 mx-auto mb-4 text-muted-foreground" />
-              <h3 className="text-lg font-medium mb-2">批量数据处理</h3>
-              <p className="text-muted-foreground mb-4">
-                上传CSV文件，AI将自动分析并优化您的供应商数据
-              </p>
-              <div className="flex gap-2 justify-center">
-                <Button variant="outline">
-                  <Upload className="h-4 w-4 mr-2" />
-                  选择文件
-                </Button>
-                <Button onClick={handleDataProcessing}>
-                  <Bot className="h-4 w-4 mr-2" />
-                  AI分析处理
-                </Button>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-    </AppLayout>
-  )
-}
-
-// 产品/服务项组件
-function ProductServiceItem({
-  product,
-  onUpdate,
-  onRemove
-}: {
-  product: ProductService
-  onUpdate: (updates: Partial<ProductService>) => void
-  onRemove: () => void
-}) {
-  return (
-    <div className="border rounded-lg p-4 space-y-4">
-      <div className="flex justify-between items-start">
-        <div className="flex-1 grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div>
-            <label className="text-sm font-medium mb-2 block">产品/服务名称</label>
-            <Input
-              value={product.name}
-              onChange={(e) => onUpdate({ name: e.target.value })}
-              placeholder="请输入产品/服务名称"
-            />
-          </div>
-          <div>
-            <label className="text-sm font-medium mb-2 block">分类</label>
-            <Input
-              value={product.category}
-              onChange={(e) => onUpdate({ category: e.target.value })}
-              placeholder="请输入分类"
-            />
-          </div>
+            <Tabs defaultValue="info" className="w-full">
+                <TabsList className={`grid w-full ${role === 'admin' ? 'grid-cols-3' : 'grid-cols-2'}`}>
+                    <TabsTrigger value="info"><User className="mr-2"/> 基本信息</TabsTrigger>
+                    <TabsTrigger value="products"><List className="mr-2"/> 商品/服务</TabsTrigger>
+                    {role === 'admin' && (
+                         <TabsTrigger value="batch"><UploadCloud className="mr-2"/> 批量处理</TabsTrigger>
+                    )}
+                </TabsList>
+                <TabsContent value="info" className="mt-4">
+                    <Card>
+                         <CardHeader>
+                            <CardTitle>基本信息</CardTitle>
+                            <CardDescription>保持您的公司档案最新，为AI分析和前端展示提供准确的数据源。</CardDescription>
+                        </CardHeader>
+                        <CardContent className="space-y-6">
+                           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                <div className="space-y-2">
+                                    <Label htmlFor="companyName">公司名称</Label>
+                                    <Input id="companyName" defaultValue="创新科技有限公司"/>
+                                </div>
+                                <div className="space-y-2">
+                                    <Label htmlFor="contactPerson">联系人</Label>
+                                    <Input id="contactPerson" defaultValue="李先生"/>
+                                </div>
+                                <div className="space-y-2">
+                                    <Label htmlFor="industry">所属行业</Label>
+                                    <Input id="industry" defaultValue="电子制造"/>
+                                </div>
+                                 <div className="space-y-2">
+                                    <Label htmlFor="foundedDate">成立日期</Label>
+                                    <Input id="foundedDate" type="date" defaultValue="2010-01-15"/>
+                                </div>
+                               <div className="space-y-2 col-span-1 md:col-span-2">
+                                    <Label htmlFor="companyBio">公司简介</Label>
+                                    <Textarea id="companyBio" rows={5} defaultValue="一家领先的创新电子元件制造商，拥有超过十年的历史。我们专注于研发和生产高品质的传感器和微控制器，服务于全球的汽车、消费电子和工业自动化行业。"/>
+                                </div>
+                           </div>
+                           <SupplementaryFieldsManager fields={infoSupplementaryFields} onUpdate={handleInfoSupFieldsUpdate} objectType="info" />
+                        </CardContent>
+                         <CardFooter className="flex justify-end">
+                            <Button>保存基本信息</Button>
+                         </CardFooter>
+                    </Card>
+                </TabsContent>
+                <TabsContent value="products" className="mt-4">
+                    <Card>
+                        <CardHeader>
+                            <CardTitle>商品 / 服务管理</CardTitle>
+                            <CardDescription>在此添加、编辑或删除您的产品和服务项目。这些信息将用于AI推荐和前端展示。</CardDescription>
+                        </CardHeader>
+                        <CardContent className="space-y-4">
+                            {products.map(product => (
+                                <ProductServiceItem key={product.id} product={product} onUpdate={updateProduct} onRemove={removeProduct} />
+                            ))}
+                        </CardContent>
+                        <CardFooter className="flex justify-between items-center">
+                            <p className="text-sm text-muted-foreground">共 {products.length} 个项目</p>
+                            <div className="flex gap-2">
+                                <Button variant="outline" onClick={addProduct}>
+                                    <PlusCircle className="mr-2 h-4 w-4" /> 增加一项
+                                </Button>
+                                <Button>保存所有变更</Button>
+                            </div>
+                        </CardFooter>
+                    </Card>
+                </TabsContent>
+                {role === 'admin' && (
+                    <TabsContent value="batch" className="mt-4">
+                       <DataProcessor />
+                    </TabsContent>
+                )}
+            </Tabs>
         </div>
-        <div className="flex gap-2 ml-4">
-          <Button size="sm" variant="outline">
-            <Save className="h-4 w-4 mr-1" />
-            保存
-          </Button>
-          <Button size="sm" variant="outline" onClick={onRemove}>
-            <Trash2 className="h-4 w-4" />
-          </Button>
-        </div>
-      </div>
-
-      <div>
-        <label className="text-sm font-medium mb-2 block">描述</label>
-        <textarea
-          value={product.description}
-          onChange={(e) => onUpdate({ description: e.target.value })}
-          placeholder="请输入产品/服务描述"
-          className="w-full min-h-[80px] p-3 border rounded-md resize-none"
-        />
-      </div>
-
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <div>
-          <label className="text-sm font-medium mb-2 block">价格</label>
-          <Input
-            value={product.price}
-            onChange={(e) => onUpdate({ price: e.target.value })}
-            placeholder="请输入价格"
-            type="number"
-          />
-        </div>
-        <div>
-          <label className="text-sm font-medium mb-2 block">单位</label>
-          <Input
-            value={product.unit}
-            onChange={(e) => onUpdate({ unit: e.target.value })}
-            placeholder="如：件、平米、人/天"
-          />
-        </div>
-        <div>
-          <label className="text-sm font-medium mb-2 block">状态</label>
-          <select
-            value={product.status}
-            onChange={(e) => onUpdate({ status: e.target.value as 'active' | 'inactive' })}
-            className="w-full px-3 py-2 border rounded-md"
-          >
-            <option value="active">启用</option>
-            <option value="inactive">禁用</option>
-          </select>
-        </div>
-      </div>
-
-      <div className="flex justify-between items-center">
-        <div className="flex gap-2">
-          <Badge variant={product.status === 'active' ? 'default' : 'secondary'}>
-            {product.status === 'active' ? '启用' : '禁用'}
-          </Badge>
-        </div>
-        <div className="text-sm text-muted-foreground">
-          价格: ¥{product.price}/{product.unit}
-        </div>
-      </div>
-    </div>
-  )
+    )
 }

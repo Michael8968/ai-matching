@@ -1,5 +1,61 @@
 {
-  "node": {},
+  "node": {
+    "40fb5ff97dec626f2382e0c7566f555e73932d0562": {
+      "workers": {
+        "app/page": {
+          "moduleId": "[project]/.next-internal/server/app/page/actions.js { ACTIONS_MODULE0 => \"[project]/src/ai/flows/product-recommendations.ts [app-rsc] (ecmascript)\", ACTIONS_MODULE1 => \"[project]/src/ai/flows/generate-user-profile.ts [app-rsc] (ecmascript)\" } [app-rsc] (server actions loader, ecmascript)",
+          "async": false
+        }
+      },
+      "layer": {
+        "app/page": "action-browser"
+      }
+    },
+    "4058aa0872bcf8bd04cb9f69406ce9428f8644cd23": {
+      "workers": {
+        "app/page": {
+          "moduleId": "[project]/.next-internal/server/app/page/actions.js { ACTIONS_MODULE0 => \"[project]/src/ai/flows/product-recommendations.ts [app-rsc] (ecmascript)\", ACTIONS_MODULE1 => \"[project]/src/ai/flows/generate-user-profile.ts [app-rsc] (ecmascript)\" } [app-rsc] (server actions loader, ecmascript)",
+          "async": false
+        }
+      },
+      "layer": {
+        "app/page": "action-browser"
+      }
+    },
+    "40cf9584feb84396dc4abbeb57d601ea07632928c7": {
+      "workers": {
+        "app/creator-workbench/page": {
+          "moduleId": "[project]/.next-internal/server/app/creator-workbench/page/actions.js { ACTIONS_MODULE0 => \"[project]/src/ai/flows/generate-3d-model.ts [app-rsc] (ecmascript)\" } [app-rsc] (server actions loader, ecmascript)",
+          "async": false
+        }
+      },
+      "layer": {
+        "app/creator-workbench/page": "action-browser"
+      }
+    },
+    "40356ea3f972cec96242a3bda0e3d0a5f05792bd66": {
+      "workers": {
+        "app/suppliers/page": {
+          "moduleId": "[project]/.next-internal/server/app/suppliers/page/actions.js { ACTIONS_MODULE0 => \"[project]/src/ai/flows/evaluate-seller-data.ts [app-rsc] (ecmascript)\" } [app-rsc] (server actions loader, ecmascript)",
+          "async": false
+        }
+      },
+      "layer": {
+        "app/suppliers/page": "action-browser"
+      }
+    },
+    "403abca033b24e940d32f0d567ae8c14462620a60e": {
+      "workers": {
+        "app/demand-pool/page": {
+          "moduleId": "[project]/.next-internal/server/app/demand-pool/page/actions.js { ACTIONS_MODULE0 => \"[project]/src/ai/flows/recommend-creatives.ts [app-rsc] (ecmascript)\" } [app-rsc] (server actions loader, ecmascript)",
+          "async": false
+        }
+      },
+      "layer": {
+        "app/demand-pool/page": "action-browser"
+      }
+    }
+  },
   "edge": {},
-  "encryptionKey": "Or/LGmegUvsPmDjPztv6UYvb2tpn9su4I8tFNp1H1Vk="
+  "encryptionKey": "OAX3p7pY4svTwDKy0kEsXDG1hVp5V7qB3d+Adpi2mc0="
 }

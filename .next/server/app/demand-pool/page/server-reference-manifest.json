@@ -1,0 +1,16 @@
+{
+  "node": {
+    "403abca033b24e940d32f0d567ae8c14462620a60e": {
+      "workers": {
+        "app/demand-pool/page": {
+          "moduleId": "[project]/.next-internal/server/app/demand-pool/page/actions.js { ACTIONS_MODULE0 => \"[project]/src/ai/flows/recommend-creatives.ts [app-rsc] (ecmascript)\" } [app-rsc] (server actions loader, ecmascript)",
+          "async": false
+        }
+      },
+      "layer": {
+        "app/demand-pool/page": "action-browser"
+      }
+    }
+  },
+  "edge": {}
+}

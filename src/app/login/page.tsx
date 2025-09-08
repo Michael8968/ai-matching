@@ -1,97 +1,89 @@
-'use client'
+'use client';
 
-import { useRouter } from 'next/navigation'
-import { useAuthStore, type Role } from '@/store/auth'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { Button } from '@/components/ui/button'
-import { User, Users, ShoppingBag, Palette } from 'lucide-react'
+import { useRouter } from 'next/navigation';
+import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
+import Image from 'next/image';
+import { useAuthStore, type Role } from '@/store/auth';
+import { Package } from 'lucide-react';
 
-const roles: Array<{
-  id: string
-  role: Role
-  name: string
-  description: string
-  icon: React.ComponentType<{ className?: string }>
-  color: string
-}> = [
+const roles: {
+  id: string,
+  name: string;
+  role: Role;
+  'data-ai-hint': string;
+}[] = [
   {
     id: 'admin-1',
+    name: '李明 (管理员)',
     role: 'admin',
-    name: '管理员',
-    description: '管理整个平台，查看所有数据',
-    icon: User,
-    color: 'bg-red-500',
+    'data-ai-hint': 'male administrator',
   },
   {
     id: 'supplier-1',
+    name: '创新科技 (供应商)',
     role: 'supplier',
-    name: '供应商',
-    description: '管理产品和服务信息',
-    icon: Users,
-    color: 'bg-blue-500',
-  },
-  {
-    id: 'user-1',
-    role: 'user',
-    name: '普通用户',
-    description: '使用AI购物助手',
-    icon: ShoppingBag,
-    color: 'bg-green-500',
+    'data-ai-hint': 'technology logo',
   },
   {
     id: 'creator-1',
+    name: '爱丽丝 (创意者)',
     role: 'creator',
-    name: '创作者',
-    description: '提供创意和内容服务',
-    icon: Palette,
-    color: 'bg-purple-500',
+    'data-ai-hint': 'female creator',
   },
-]
+  {
+    id: 'user-1',
+    name: '张伟 (普通用户)',
+    role: 'user',
+    'data-ai-hint': 'male user',
+  },
+];
+
+const roleRedirectMap: Record<Role, string> = {
+    admin: '/',
+    user: '/',
+    creator: '/creator-workbench',
+    supplier: '/suppliers',
+}
 
 export default function LoginPage() {
-  const router = useRouter()
-  const { login } = useAuthStore()
+  const router = useRouter();
+  const { login } = useAuthStore();
 
   const handleLogin = (userId: string, role: Role) => {
-    login(userId, role)
-    router.push('/')
-  }
+    login(userId, role);
+    router.push(roleRedirectMap[role] || '/');
+  };
 
   return (
-    <div className="min-h-screen bg-background flex items-center justify-center p-4">
-      <div className="w-full max-w-4xl">
-        <div className="text-center mb-8">
-          <h1 className="text-4xl font-bold font-headline mb-2">AI智能匹配平台</h1>
-          <p className="text-muted-foreground">请选择您的角色身份登录</p>
+    <div className="flex flex-col items-center justify-center min-h-screen bg-background p-4">
+        <div className="text-center mb-12">
+            <div className="inline-flex items-center gap-3 mb-4">
+                <Package className="h-10 w-10 text-primary" />
+                <h1 className="text-4xl font-headline font-bold">AI 智能匹配</h1>
+            </div>
+            <p className="text-muted-foreground text-lg">选择一个模拟角色登录以体验平台</p>
         </div>
-
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-          {roles.map((roleInfo) => {
-            const Icon = roleInfo.icon
-            return (
-              <Card key={roleInfo.id} className="hover:shadow-lg transition-shadow">
-                <CardHeader className="text-center">
-                  <div className={`w-16 h-16 mx-auto rounded-full ${roleInfo.color} flex items-center justify-center mb-4`}>
-                    <Icon className="h-8 w-8 text-white" />
-                  </div>
-                  <CardTitle className="font-headline">{roleInfo.name}</CardTitle>
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-8 max-w-5xl w-full">
+            {roles.map((r) => (
+            <Card key={r.role} className="flex flex-col text-center items-center hover:shadow-xl transition-shadow duration-300 rounded-xl">
+                <CardHeader>
+                    <div className="relative mx-auto mb-4 h-24 w-24">
+                        <Image src={`https://placehold.co/100x100.png`} alt={`${r.name} avatar`} width={100} height={100} className="rounded-full object-cover" data-ai-hint={r['data-ai-hint']} />
+                    </div>
+                    <CardTitle className="font-headline">{r.name}</CardTitle>
                 </CardHeader>
-                <CardContent className="text-center">
-                  <p className="text-sm text-muted-foreground mb-4">
-                    {roleInfo.description}
-                  </p>
-                  <Button
-                    onClick={() => handleLogin(roleInfo.id, roleInfo.role)}
-                    className="w-full"
-                  >
-                    登录
-                  </Button>
+                <CardContent className="flex-grow">
                 </CardContent>
-              </Card>
-            )
-          })}
-        </div>
+                <CardFooter className="w-full p-4">
+                <Button className="w-full" onClick={() => handleLogin(r.id, r.role)} size="lg">
+                    登录
+                </Button>
+                </CardFooter>
+            </Card>
+            ))}
       </div>
     </div>
-  )
+  );
 }
