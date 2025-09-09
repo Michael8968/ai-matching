@@ -1,0 +1,16 @@
+{
+  "node": {
+    "00da22baa2d32f9a1ae8eb34de6697e404208511aa": {
+      "workers": {
+        "app/prompts/page": {
+          "moduleId": "[project]/.next-internal/server/app/prompts/page/actions.js { ACTIONS_MODULE0 => \"[project]/src/store/resources.ts [app-rsc] (ecmascript)\" } [app-rsc] (server actions loader, ecmascript)",
+          "async": false
+        }
+      },
+      "layer": {
+        "app/prompts/page": "action-browser"
+      }
+    }
+  },
+  "edge": {}
+}
